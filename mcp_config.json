@@ -5,13 +5,13 @@
       "command": "python",
       "args": ["-m", "miot_skill"],
       "env": {
-        "MIOT_CACHE_DIR": "~/.miot-skill"
+        "MIOT_CACHE_DIR": "~/.miot-mcp"
       }
     },
     "miot-skill-remote": {
       "type": "sse",
       "url": "${XIAOZHI_MCP_URL}",
-      "disabled": true
+      "disabled": false
     }
   }
 }
