@@ -3,32 +3,41 @@
 
 用法:
     python -m miot_mcp           # 启动 MCP stdio server
-    python -m miot_mcp login     # 扫码登录
+    python -m miot_mcp login     # 扫码登录（终端显示二维码）
     python -m miot_mcp test      # 测试连接
 """
 import asyncio
 import re
 import sys
 
+import qrcode
+
 from .server import main as server_main
 
 
 async def login():
-    """OAuth 扫码登录。"""
+    """OAuth 扫码登录 — 终端显示二维码。"""
     from .auth import MIoTAuth
 
     auth = MIoTAuth()
     auth_url, state = await auth.gen_oauth_url()
+
+    # 终端二维码
+    qr = qrcode.QRCode()
+    qr.add_data(auth_url)
+    qr.print_ascii()
+
     print(f"""
 ╔══════════════════════════════════════════════════════════╗
 ║               🔐 米家授权登录                            ║
 ╚══════════════════════════════════════════════════════════╝
 
-📱 复制以下链接，在手机浏览器中打开并扫码:
+📱 用手机米家 App 扫描上方二维码授权
 
+如果扫码失败，也可复制以下链接在浏览器中打开:
 {auth_url}
 
-扫码授权后，浏览器会跳转到 127.0.0.1（无法打开是正常的），
+扫码授权后，浏览器会跳转到 127.0.0.1（打不开是正常的），
 把浏览器地址栏的 👉 完整 URL 👈 粘贴到这里:
 """)
 
