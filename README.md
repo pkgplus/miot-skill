@@ -1,16 +1,17 @@
 # miot-skill
 
-> 基于小米官方 [miot_kit](https://github.com/XiaoMi/xiaomi-miloco) SDK 的米家智能家居控制工具 — 让 AI 直接操控你的米家设备。提供 MCP Server、CLI 命令、Agent Skill 及小智 WebSocket 桥接，纯 Python，ARM64 可用，零 GPU 依赖。
+> 基于小米官方 [miot_kit](https://github.com/XiaoMi/xiaomi-miloco) SDK 的米家智能家居控制工具 — 让 AI 直接操控你的米家设备。提供 MCP Server、CLI 命令、Agent Skill 及小智 WebSocket 桥接，**单进程搞定全部**，纯 Python，ARM64 可用，零 GPU 依赖。
 
 ## 特性
 
 - 🏠 **官方 SDK 直连** — 基于小米官方 miot_kit，复用 OAuth + AES 加密协议，稳定可靠
 - 📱 **终端扫码登录** — 运行即显示二维码，手机米家一扫授权，token 自动刷新
-- 🔧 **多种接入方式** — MCP Server、CLI 命令、Agent Skill，按需选用
+- 🔧 **多种接入方式** — 默认 stdio、`--http-port` HTTP MCP、`--xiaozhi` WebSocket 桥接，可任意组合
 - 🔍 **模糊匹配** — 设备/场景名称智能搜索，说「台灯」就能找到
-- 🌐 **小智适配** — 通过 `mcp_pipe.py` WebSocket 桥接，断线自动重连
+- 🌐 **小智内置桥接** — `--xiaozhi` 参数直接启用，无需额外进程，断线自动重连
 - 🤖 **Agent Skill** — 内置 MCP 和 CLI 两种 Skill，AI 开箱即用
 - 🐍 **全异步** — aiohttp 驱动，无同步阻塞，ARM64 / x64 通吃
+- ⚡ **单进程架构** — HTTP MCP + 小智桥接合二为一，不再需要 mcp_pipe 子进程
 
 ## 快速开始
 
@@ -50,9 +51,27 @@ python -m miot_skill homes
 # 测试连接
 python -m miot_skill test
 
-# 启动 MCP Server（stdio 模式）
+# 默认 stdio 模式（兼容旧版）
 python -m miot_skill
+
+# 一体化模式：HTTP MCP（给 Hermes/Claude Code）+ 小智桥接
+python -m miot_skill --http-port 8300 --xiaozhi
+
+# 仅 HTTP MCP
+python -m miot_skill --http-port 8300
+
+# 仅小智桥接
+python -m miot_skill --xiaozhi
 ```
+
+## 运行模式
+
+| 参数 | 说明 | 适用场景 |
+|------|------|----------|
+| (无参数) | stdio MCP Server | 兼容旧版，Claude Code 直连 |
+| `--http-port PORT` | HTTP MCP Server (streamable-http) | Hermes Agent 等 HTTP 客户端 |
+| `--xiaozhi` | 小智 WebSocket 桥接 | 小智平台远程控制 |
+| `--http-port PORT --xiaozhi` | **一体化模式（推荐）** | **单进程同时服务本地和小智** |
 
 ## MCP 工具
 
@@ -97,7 +116,7 @@ python -m miot_skill status                     # 连接状态
 
 | Skill | 路径 | 调用方式 | 适用场景 |
 |-------|------|----------|----------|
-| **miot-mcp** | `skills/miot-mcp/` | MCP 工具调用 | Claude Code、小智等 MCP 环境 |
+| **miot-mcp** | `skills/miot-mcp/` | MCP 工具调用 | Claude Code、Hermes、小智等 MCP 环境 |
 | **miot-cli** | `skills/miot-cli/` | Bash 执行 CLI 命令 | 无 MCP 环境时的回退方案 |
 
 **MCP 版本**（推荐）：Server 长驻，连接复用，响应快。适合已配置 MCP Server 的环境。
@@ -106,7 +125,7 @@ python -m miot_skill status                     # 连接状态
 
 ### 安装 Skill
 
-将 `skills/miot-mcp/` 或 `skills/miot-cli/` 复制到你的 Claude Code 项目 `.claude/skills/` 目录即可。
+将 `skills/miot-mcp/` 或 `skills/miot-cli/` 复制到你的 Agent 项目 skills 目录即可。
 
 ## 注册到 Claude Code
 
@@ -126,90 +145,99 @@ python -m miot_skill status                     # 连接状态
 
 ## 注册到 Hermes Agent
 
+**推荐使用 HTTP 模式**（单进程，无需子进程）：
+
 ```yaml
 # ~/.hermes/config.yaml
 mcp_servers:
   miot:
-    command: /path/to/miot-skill/venv/bin/python
-    args: [-m, miot_skill]
+    transport: streamable-http
+    url: http://127.0.0.1:8300
     timeout: 30
 ```
 
+配合 systemd 开机自启：
+
 ```bash
-hermes mcp test miot
+# 复制 service 文件
+sudo cp miot-mcp.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now miot-mcp.service
 ```
+
+> 旧版 stdio 模式仍然支持，但会额外启动一个子进程。推荐升级到 HTTP 模式。
 
 ## 小智平台
 
-通过 `mcp_pipe.py` 将本地 MCP Server 桥接到小智 WebSocket：
+**内置桥接**（v1.1+），无需 mcp_pipe：
 
 ```bash
 # 设置小智 MCP 端点
-export MCP_ENDPOINT=wss://api.xiaozhi.me/mcp/?token=XXXXX
+export MCP_ENDPOINT=wss://api.xiaozhi.me/mcp/?token=***
 
-# 启动桥接（自动读取 mcp_config.json 中已启用的 server）
-python mcp_pipe.py
-
-# 或指定单个 server
-python mcp_pipe.py miot-skill
+# 启动（单进程：HTTP MCP + 小智桥接）
+python -m miot_skill --http-port 8300 --xiaozhi
 ```
 
 特性：
 - WebSocket 断线自动重连（指数退避，最大 10 分钟）
-- 支持 stdio / sse / http 三种传输类型
-- 多 server 并行桥接
+- 与 HTTP MCP 共享同一进程，零额外开销
 - 兼容 `MCP_ENDPOINT` 和 `XIAOZHI_MCP_URL` 环境变量
+
+> ⚠️ `mcp_pipe.py` 已废弃，功能已集成到 `--xiaozhi` 参数中。如需独立桥接仍可使用。
+
+## 部署（systemd 开机自启）
+
+```bash
+# 1. 创建 .env 文件
+cat > .env << EOF
+MCP_ENDPOINT=wss://api.xiaozhi.me/mcp/?token=你的token
+EOF
+
+# 2. 安装 service
+sudo cp miot-mcp.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now miot-mcp.service
+
+# 3. 验证
+systemctl status miot-mcp.service
+```
 
 ## 架构
 
 ```
-   ┌─────────────────┐
-   │  小智平台         │  WebSocket
-   │  api.xiaozhi.me  │
-   └────┬────────────┘
-        │ ws://
-   ┌────▼────────────┐
-   │  mcp_pipe.py     │  WebSocket ↔ stdio 桥接
-   │                  │  自动重连 + 多 server
-   └────┬────────────┘
-        │ stdio
-   ┌────▼────────────┐
-   │  miot_skill      │  11 MCP 工具 + CLI
-   │  server.py       │  FastMCP
-   └────┬────────────┘
-        │
-   ┌────▼────────────┐
-   │  proxy.py        │  token 自动刷新
-   │                  │  设备/场景控制
-   └────┬────────────┘
-        │
-   ┌────▼────────────┐
-   │  miot_kit        │  OAuth2 / AES+RSA
-   │  (小米官方 SDK)   │  全异步 aiohttp
-   └────┬────────────┘
-        │ HTTPS
-   ┌────▼────────────┐
-   │  小米 IoT 云     │
-   │  mico.api        │
-   └─────────────────┘
+                    ┌──────────────────┐
+    Hermes ──HTTP──►│                  │
+                    │   miot_skill     │──WS──► 小智平台
+  Claude Code ──stdio──►  (单进程)     │
+                    │                  │──HTTPS──► 小米 IoT 云
+                    └──────────────────┘
+                          │
+              ┌───────────┼───────────┐
+              ▼           ▼           ▼
+          proxy.py    auth.py    miot_kit
+         (设备控制)   (OAuth)   (小米SDK)
 ```
+
+单进程架构：HTTP MCP、小智 WebSocket 桥接、设备控制全部在同一个进程中运行。
 
 ## 项目结构
 
 ```
 miot-skill/
 ├── src/miot_skill/
-│   ├── server.py       # MCP Server（FastMCP stdio）
+│   ├── server.py       # MCP Server（支持 stdio / HTTP / 小智桥接）
 │   ├── cli.py          # CLI 命令入口
 │   ├── proxy.py        # 设备控制代理层
 │   ├── auth.py         # OAuth 认证
 │   ├── config.py       # 配置常量
-│   └── __main__.py     # 入口分发
+│   └── __main__.py     # 入口分发 + 参数解析
 ├── skills/
 │   ├── miot-mcp/       # MCP 版 Agent Skill
 │   └── miot-cli/       # CLI 版 Agent Skill
-├── mcp_pipe.py         # 小智 WebSocket 桥接
+├── mcp_pipe.py         # 独立桥接（已废弃，功能集成到 --xiaozhi）
 ├── mcp_config.json     # MCP Server 配置
+├── miot-mcp.service    # systemd service 文件
 └── pyproject.toml
 ```
 
