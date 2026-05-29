@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+dist/
+.DS_Store
+*.swp
+.env
+auth.json
+uuid.txt

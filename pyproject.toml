@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "miot-mcp"
+version = "0.1.0"
+description = "Xiaomi Mijia Smart Home MCP Server"
+requires-python = ">=3.10"
+dependencies = [
+    "miot_kit",
+    "fastmcp>=2.11",
+    "aiohttp>=3.12",
+]
+
+[project.scripts]
+miot-mcp = "miot_mcp:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

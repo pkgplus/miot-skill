@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "miot-mcp": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "miot_mcp"],
+      "env": {
+        "MIOT_CACHE_DIR": "~/.miot-mcp"
+      }
+    },
+    "miot-mcp-remote": {
+      "type": "sse",
+      "url": "${XIAOZHI_REMOTE_URL}",
+      "headers": {
+        "Authorization": "Bearer ${XIAOZHI_TOKEN}"
+      },
+      "disabled": true
+    }
+  }
+}
