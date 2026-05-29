@@ -1,5 +1,5 @@
 [Unit]
-Description=miot-x - Xiaozhi Bridge + HTTP MCP
+Description=miot-x-mcp - Xiaozhi Bridge + HTTP MCP
 After=network-online.target
 Wants=network-online.target
 

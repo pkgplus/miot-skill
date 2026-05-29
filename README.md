@@ -160,9 +160,9 @@ mcp_servers:
 
 ```bash
 # 复制 service 文件
-sudo cp miot-x.service /etc/systemd/system/
+sudo cp miot-x-mcp.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now miot-x.service
+sudo systemctl enable --now miot-x-mcp.service
 ```
 
 > 旧版 stdio 模式仍然支持，但会额外启动一个子进程。推荐升级到 HTTP 模式。
@@ -195,12 +195,12 @@ MCP_ENDPOINT=wss://api.xiaozhi.me/mcp/?token=你的token
 EOF
 
 # 2. 安装 service
-sudo cp miot-x.service /etc/systemd/system/
+sudo cp miot-x-mcp.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now miot-x.service
+sudo systemctl enable --now miot-x-mcp.service
 
 # 3. 验证
-systemctl status miot-x.service
+systemctl status miot-x-mcp.service
 ```
 
 ## 架构
@@ -240,7 +240,7 @@ miot-x/
 │   ├── miot-mcp/           #   MCP 版 Skill
 │   └── miot-cli/           #   CLI 版 Skill
 ├── mcp_config.json         # MCP Server 配置
-├── miot-x.service        # systemd service 文件
+├── miot-x-mcp.service        # systemd service 文件
 └── pyproject.toml
 ```
 
