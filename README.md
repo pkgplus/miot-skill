@@ -15,15 +15,35 @@
 
 ## 安装
 
+### 1. 获取 miot_kit
+
+`miot_kit` 是小米 xiaomi-miloco 项目中的 MIoT 客户端库，需要先 clone：
+
+```bash
+# Clone xiaomi-miloco（只需 miot_kit 目录，其他 AI 引擎不需要）
+git clone --depth 1 https://github.com/XiaoMi/xiaomi-miloco.git ~/src/xiaomi-miloco
+```
+
+> **说明**：`miot_kit` 是纯 Python 包（aiohttp + cryptography），不依赖 x86 架构或 NVIDIA GPU。
+> xiaomi-miloco 仓库中的 `miloco_ai_engine/` 才需要 GPU，但 miot-mcp 不碰它。
+
+### 2. 安装 miot-mcp
+
 ```bash
 git clone https://github.com/pkgplus/miot-mcp.git
 cd miot-mcp
 python3 -m venv venv
 source venv/bin/activate
 
-# 安装 miot_kit（需要先 clone xiaomi-miloco）
-pip install -e /path/to/xiaomi-miloco/miot_kit
-pip install -e .
+# 安装依赖
+pip install -e ~/src/xiaomi-miloco/miot_kit   # miot_kit SDK
+pip install -e .                                # miot-mcp 本体
+```
+
+### 3. 验证
+
+```bash
+python -m miot_mcp test --help
 ```
 
 ## 使用
