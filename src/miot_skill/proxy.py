@@ -18,7 +18,7 @@ from miot.types import (
 )
 
 from .auth import MIoTAuth
-from .config import OAUTH_REDIRECT_URI, CLOUD_SERVER, CACHE_DIR
+from .config import OAUTH_REDIRECT_URI, CLOUD_SERVER, CACHE_DIR, get_selected_home_ids
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,12 +117,29 @@ class MiotProxy:
     # ── 家庭/房间 ──────────────────────────────────
 
     async def get_homes(self) -> dict[str, MIoTHomeInfo]:
-        return await self._client.get_homes_async()
+        all_homes = await self._client.get_homes_async()
+        selected = get_selected_home_ids()
+        if selected is None:
+            return all_homes
+        return {k: v for k, v in all_homes.items() if v.home_id in selected}
 
     # ── 设备 ───────────────────────────────────────
 
     async def get_devices(self) -> dict[str, MIoTDeviceInfo]:
-        return await self._client.get_devices_async()
+        all_devices = await self._client.get_devices_async()
+        selected = get_selected_home_ids()
+        if selected is None:
+            return all_devices
+        # 按家庭过滤：只返回所选家庭中房间里的设备
+        homes = await self._client.get_homes_async()
+        allowed_dids = set()
+        for home in homes.values():
+            if home.home_id not in selected:
+                continue
+            if home.room_list:
+                for rinfo in home.room_list.values():
+                    allowed_dids.update(rinfo.dids)
+        return {k: v for k, v in all_devices.items() if k in allowed_dids}
 
     async def get_prop(self, did: str, siid: int, piid: int):
         """读取设备属性。"""
@@ -142,7 +159,11 @@ class MiotProxy:
     # ── 场景 ───────────────────────────────────────
 
     async def get_scenes(self) -> dict[str, MIoTManualSceneInfo]:
-        return await self._client.get_manual_scenes_async()
+        all_scenes = await self._client.get_manual_scenes_async()
+        selected = get_selected_home_ids()
+        if selected is None:
+            return all_scenes
+        return {k: v for k, v in all_scenes.items() if v.home_id in selected}
 
     async def run_scene(self, scene_info: MIoTManualSceneInfo) -> bool:
         return await self._client.run_manual_scene_async(scene_info=scene_info)

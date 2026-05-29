@@ -100,6 +100,9 @@ description: "智能家居 MCP 控制 Agent — 通过 MCP 工具控制小米米
 如果 MCP 工具调用失败，先调用 `get_service_status` 确认连接状态。如果返回未连接，提示用户：
 - 确认 MCP Server 已启动
 - 如果未登录，需要运行 `python -m miot_skill login` 扫码授权
+- 如果需要切换家庭，运行 `python -m miot_skill homes`
+
+设备和场景只返回用户选定家庭的内容。登录时已选择家庭，如需更改可随时运行 `homes` 命令。
 
 ## 回复风格
 

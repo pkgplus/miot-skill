@@ -70,12 +70,19 @@ class MIoTAuth:
     # ── Token 持久化 ────────────────────────────────
 
     def save(self, oauth_info: MIoTOauthInfo) -> None:
-        """保存 token 到磁盘。"""
-        data = {
+        """保存 token 到磁盘（保留已有的 home_ids 等配置）。"""
+        data = {}
+        if AUTH_FILE.exists():
+            try:
+                data = json.loads(AUTH_FILE.read_text())
+            except Exception:
+                pass
+        data.update({
             "access_token": oauth_info.access_token,
             "refresh_token": oauth_info.refresh_token,
             "expires_ts": oauth_info.expires_ts,
-        }
+        })
+        AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
         AUTH_FILE.write_text(json.dumps(data, indent=2))
         _LOGGER.info("token 已保存: %s", AUTH_FILE)
 

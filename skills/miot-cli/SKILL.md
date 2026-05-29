@@ -124,6 +124,12 @@ python -m miot_skill off 书房灯
 python -m miot_skill login
 ```
 
+登录后会自动提示选择家庭，也可以随时切换：
+
+```bash
+python -m miot_skill homes
+```
+
 ## 回复风格
 
 - 用中文回复

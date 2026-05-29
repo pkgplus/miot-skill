@@ -4,6 +4,7 @@
 用法:
     python -m miot_skill           # 启动 MCP stdio server
     python -m miot_skill login     # 扫码登录（终端显示二维码）
+    python -m miot_skill homes     # 重新选择家庭
     python -m miot_skill test      # 测试连接
 """
 import asyncio
@@ -58,6 +59,56 @@ async def login():
 """)
     except Exception as e:
         print(f"❌ 登录失败: {e}")
+        return
+
+    # 登录成功后选择家庭
+    await select_homes()
+
+
+async def select_homes():
+    """选择要控制的家庭。"""
+    from .proxy import MiotProxy
+    from .config import save_selected_home_ids
+
+    print("🏠 正在获取家庭列表...")
+    proxy = MiotProxy()
+    await proxy.init()
+    homes = await proxy.get_homes()
+    await proxy.deinit()
+
+    if not homes:
+        print("⚠️  未找到任何家庭")
+        return
+
+    home_list = list(homes.values())
+    print("\n可用家庭:")
+    for i, home in enumerate(home_list, 1):
+        room_count = len(home.room_list) if home.room_list else 0
+        print(f"  [{i}] {home.home_name}（{room_count} 个房间）")
+    print(f"  [0] 全部家庭")
+
+    choice = input("\n请选择家庭编号（多个用逗号分隔，直接回车选全部）: ").strip()
+
+    if not choice or choice == "0":
+        save_selected_home_ids(None)
+        print("✅ 已选择: 全部家庭")
+    else:
+        selected_ids = []
+        selected_names = []
+        for part in choice.split(","):
+            try:
+                idx = int(part.strip()) - 1
+                if 0 <= idx < len(home_list):
+                    selected_ids.append(home_list[idx].home_id)
+                    selected_names.append(home_list[idx].home_name)
+            except ValueError:
+                continue
+        if selected_ids:
+            save_selected_home_ids(selected_ids)
+            print(f"✅ 已选择: {', '.join(selected_names)}")
+        else:
+            save_selected_home_ids(None)
+            print("✅ 已选择: 全部家庭")
 
 
 async def test():
@@ -81,6 +132,8 @@ def main():
         asyncio.run(login())
     elif cmd == "test":
         asyncio.run(test())
+    elif cmd == "homes":
+        asyncio.run(select_homes())
     elif cmd in CLI_COMMANDS:
         from .cli import cli_main
         cli_main()

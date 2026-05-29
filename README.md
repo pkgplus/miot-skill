@@ -38,6 +38,12 @@ python -m miot_skill login
 
 终端会显示二维码，用手机米家 App 扫码授权。授权后浏览器会跳转到 `127.0.0.1`（打不开是正常的），把地址栏的完整 URL 粘贴回终端即可。
 
+登录成功后会自动提示选择家庭（支持多选或全部）。选择后只会操作对应家庭的设备和场景。随时可通过以下命令重新选择：
+
+```bash
+python -m miot_skill homes
+```
+
 ### 4. 使用
 
 ```bash
@@ -69,6 +75,7 @@ python -m miot_skill
 除了 MCP 模式，还提供独立 CLI 命令用于调试或 Agent Skill 调用：
 
 ```bash
+python -m miot_skill homes                      # 选择/切换家庭
 python -m miot_skill devices [--room 房间名]   # 设备列表
 python -m miot_skill device <设备名>            # 设备详情
 python -m miot_skill on <设备名>                # 打开
