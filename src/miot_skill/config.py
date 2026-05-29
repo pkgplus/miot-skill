@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 # 缓存目录
-CACHE_DIR = Path(os.getenv("MIOT_CACHE_DIR", os.path.expanduser("~/.miot-mcp")))
+CACHE_DIR = Path(os.getenv("MIOT_CACHE_DIR", os.path.expanduser("~/.miot-skill")))
 # Token 持久化文件
 AUTH_FILE = CACHE_DIR / "auth.json"
 # 设备/场景缓存
