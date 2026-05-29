@@ -1,14 +1,15 @@
 # miot-skill
 
-> 小米米家智能家居 MCP Server — 基于小米官方 [miot_kit](https://github.com/XiaoMi/xiaomi-miloco) SDK，纯 Python，ARM64 可用，零 GPU 依赖。
+> 基于小米官方 [miot_kit](https://github.com/XiaoMi/xiaomi-miloco) SDK 的米家智能家居控制工具 — 让 AI 直接操控你的米家设备。提供 MCP Server、CLI 命令、Agent Skill 及小智 WebSocket 桥接，纯 Python，ARM64 可用，零 GPU 依赖。
 
 ## 特性
 
-- 🏠 **小米云直连** — 复用 miloco 的 OAuth ClientID + AES 加密协议，稳定可靠
+- 🏠 **官方 SDK 直连** — 基于小米官方 miot_kit，复用 OAuth + AES 加密协议，稳定可靠
 - 📱 **终端扫码登录** — 运行即显示二维码，手机米家一扫授权，token 自动刷新
-- 🔧 **11 个 MCP 工具** — 设备列表、开关控制、属性读写、场景执行
+- 🔧 **多种接入方式** — MCP Server、CLI 命令、Agent Skill，按需选用
 - 🔍 **模糊匹配** — 设备/场景名称智能搜索，说「台灯」就能找到
-- 🌐 **小智适配** — 内置 `mcp_config.json`，支持远程 SSE/HTTP 注册
+- 🌐 **小智适配** — 通过 `mcp_pipe.py` WebSocket 桥接，断线自动重连
+- 🤖 **Agent Skill** — 内置 MCP 和 CLI 两种 Skill，AI 开箱即用
 - 🐍 **全异步** — aiohttp 驱动，无同步阻塞，ARM64 / x64 通吃
 
 ## 快速开始
@@ -43,7 +44,7 @@ python -m miot_skill login
 # 测试连接
 python -m miot_skill test
 
-# 启动 MCP 服务
+# 启动 MCP Server（stdio 模式）
 python -m miot_skill
 ```
 
@@ -62,6 +63,59 @@ python -m miot_skill
 | `list_scenes` | 场景列表 |
 | `execute_scene` | 执行场景（名称模糊匹配） |
 | `get_service_status` | 服务连接状态 |
+
+## CLI 命令
+
+除了 MCP 模式，还提供独立 CLI 命令用于调试或 Agent Skill 调用：
+
+```bash
+python -m miot_skill devices [--room 房间名]   # 设备列表
+python -m miot_skill device <设备名>            # 设备详情
+python -m miot_skill on <设备名>                # 打开
+python -m miot_skill off <设备名>               # 关闭
+python -m miot_skill toggle <设备名>            # 切换
+python -m miot_skill get <设备名> <siid> <piid> # 读属性
+python -m miot_skill set <设备名> <siid> <piid> <value>  # 写属性
+python -m miot_skill action <设备名> <siid> <aiid> [--args ...]  # 执行动作
+python -m miot_skill scenes                     # 场景列表
+python -m miot_skill scene <场景名>             # 执行场景
+python -m miot_skill status                     # 连接状态
+```
+
+所有命令输出 JSON 格式，设备名/场景名支持模糊匹配。
+
+## Agent Skills
+
+项目内置两种 Agent Skill，位于 `skills/` 目录：
+
+| Skill | 路径 | 调用方式 | 适用场景 |
+|-------|------|----------|----------|
+| **miot-mcp** | `skills/miot-mcp/` | MCP 工具调用 | Claude Code、小智等 MCP 环境 |
+| **miot-cli** | `skills/miot-cli/` | Bash 执行 CLI 命令 | 无 MCP 环境时的回退方案 |
+
+**MCP 版本**（推荐）：Server 长驻，连接复用，响应快。适合已配置 MCP Server 的环境。
+
+**CLI 版本**：每次通过 Bash 执行独立命令，无需 MCP Server 运行。适合调试或无法注册 MCP 的场景。
+
+### 安装 Skill
+
+将 `skills/miot-mcp/` 或 `skills/miot-cli/` 复制到你的 Claude Code 项目 `.claude/skills/` 目录即可。
+
+## 注册到 Claude Code
+
+在项目 `.claude/settings.json` 中添加 MCP Server：
+
+```json
+{
+  "mcpServers": {
+    "miot-skill": {
+      "type": "stdio",
+      "command": "/path/to/miot-skill/venv/bin/python",
+      "args": ["-m", "miot_skill"]
+    }
+  }
+}
+```
 
 ## 注册到 Hermes Agent
 
@@ -94,9 +148,10 @@ python mcp_pipe.py miot-skill
 ```
 
 特性：
-- WebSocket 断线自动重连（指数退避）
+- WebSocket 断线自动重连（指数退避，最大 10 分钟）
 - 支持 stdio / sse / http 三种传输类型
 - 多 server 并行桥接
+- 兼容 `MCP_ENDPOINT` 和 `XIAOZHI_MCP_URL` 环境变量
 
 ## 架构
 
@@ -112,13 +167,13 @@ python mcp_pipe.py miot-skill
    └────┬────────────┘
         │ stdio
    ┌────▼────────────┐
-   │  miot_skill      │  11 工具
+   │  miot_skill      │  11 MCP 工具 + CLI
    │  server.py       │  FastMCP
    └────┬────────────┘
         │
    ┌────▼────────────┐
-   │  miot_skill      │  token 刷新
-   │  proxy.py        │  设备控制
+   │  proxy.py        │  token 自动刷新
+   │                  │  设备/场景控制
    └────┬────────────┘
         │
    ┌────▼────────────┐
@@ -127,9 +182,28 @@ python mcp_pipe.py miot-skill
    └────┬────────────┘
         │ HTTPS
    ┌────▼────────────┐
-   │  mico.api.       │
-   │  mijia.tech      │
+   │  小米 IoT 云     │
+   │  mico.api        │
    └─────────────────┘
+```
+
+## 项目结构
+
+```
+miot-skill/
+├── src/miot_skill/
+│   ├── server.py       # MCP Server（FastMCP stdio）
+│   ├── cli.py          # CLI 命令入口
+│   ├── proxy.py        # 设备控制代理层
+│   ├── auth.py         # OAuth 认证
+│   ├── config.py       # 配置常量
+│   └── __main__.py     # 入口分发
+├── skills/
+│   ├── miot-mcp/       # MCP 版 Agent Skill
+│   └── miot-cli/       # CLI 版 Agent Skill
+├── mcp_pipe.py         # 小智 WebSocket 桥接
+├── mcp_config.json     # MCP Server 配置
+└── pyproject.toml
 ```
 
 ## License
