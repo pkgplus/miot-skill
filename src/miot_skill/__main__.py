@@ -72,12 +72,18 @@ async def test():
     await proxy.deinit()
 
 
+CLI_COMMANDS = {"devices", "device", "on", "off", "toggle", "get", "set", "action", "scenes", "scene", "status"}
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "run"
     if cmd == "login":
         asyncio.run(login())
     elif cmd == "test":
         asyncio.run(test())
+    elif cmd in CLI_COMMANDS:
+        from .cli import cli_main
+        cli_main()
     else:
         asyncio.run(server_main())
 
