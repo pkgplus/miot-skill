@@ -1,6 +1,6 @@
 # miot-x
 
-> 基于小米官方 [miot_kit](https://github.com/XiaoMi/xiaomi-miloco) SDK 的米家智能家居控制工具 — 让 AI 直接操控你的米家设备。提供 MCP Server、CLI 命令、Agent Skill 及小智 WebSocket 桥接，**单进程搞定全部**，纯 Python，ARM64 可用，零 GPU 依赖。
+> 米家智能家居控制工具 — 内置小米官方 [miot_kit](https://github.com/XiaoMi/xiaomi-miloco) SDK，零外部 SDK 依赖，开箱即用。提供 MCP Server、CLI 命令、Agent Skill 及小智 WebSocket 桥接，**单进程搞定全部**，纯 Python，ARM64 可用，零 GPU 依赖。
 
 ## 特性
 
@@ -15,20 +15,14 @@
 
 ## 快速开始
 
-### 1. 获取 miot_kit
-
-```bash
-git clone --depth 1 https://github.com/XiaoMi/xiaomi-miloco.git ~/src/xiaomi-miloco
-```
-
-### 2. 安装
+### 1. 安装
 
 ```bash
 git clone https://github.com/pkgplus/miot-x.git
 cd miot-x
 python3 -m venv venv && source venv/bin/activate
-pip install -e ~/src/xiaomi-miloco/miot_kit
 pip install -e .
+# 内置 miot_kit SDK (基于 XiaoMi/xiaomi-miloco v0.1.15 + bugfix)，无需额外安装
 ```
 
 ### 3. 扫码登录
@@ -225,24 +219,45 @@ systemctl status miot-x-mcp.service
 
 ```
 miot-x/
-├── src/miot_x/
-│   ├── __main__.py         # 入口分发 + 参数解析
-│   ├── lib/                # 核心库：设备控制、认证、配置
-│   │   ├── config.py       #   配置常量 + 家庭选择
-│   │   ├── auth.py         #   OAuth 认证 + token 管理
-│   │   └── proxy.py        #   设备/场景控制代理
-│   ├── mcp/                # MCP 协议层
-│   │   ├── server.py       #   FastMCP 工具注册 + stdio/HTTP
-│   │   └── xiaozhi.py      #   小智 WebSocket 桥接
-│   └── cli/                # CLI 命令层
-│       └── commands.py     #   所有子命令实现
-├── skills/                 # Agent Skills
-│   ├── miot-mcp/           #   MCP 版 Skill
-│   └── miot-cli/           #   CLI 版 Skill
-├── mcp_config.json         # MCP Server 配置
+├── src/
+│   ├── miot_x/               # miot-x 核心
+│   │   ├── __main__.py       #   入口分发 + 参数解析
+│   │   ├── lib/              #   核心库：设备控制、认证、配置
+│   │   │   ├── config.py     #     配置常量 + 家庭选择
+│   │   │   ├── auth.py       #     OAuth 认证 + token 管理
+│   │   │   └── proxy.py      #     设备/场景控制代理
+│   │   ├── mcp/              #   MCP 协议层
+│   │   │   ├── server.py     #     FastMCP 工具注册 + stdio/HTTP
+│   │   │   └── xiaozhi.py    #     小智 WebSocket 桥接
+│   │   └── cli/              #   CLI 命令层
+│   │       └── commands.py   #     所有子命令实现
+│   └── miot/                 # 小米官方 miot_kit SDK (内置)
+│       ├── client.py         #   设备客户端 (含 dict iter bugfix)
+│       ├── cloud.py          #   小米 IoT 云通信
+│       ├── oauth2.py         #   OAuth 2.0 认证
+│       └── ...
+├── skills/                   # Agent Skills
+│   ├── miot-mcp/             #   MCP 版 Skill
+│   └── miot-cli/             #   CLI 版 Skill
+├── mcp_config.json           # MCP Server 配置
 ├── miot-x-mcp.service        # systemd service 文件
 └── pyproject.toml
 ```
+
+## miot_kit SDK 说明
+
+本项目内置的 `src/miot/` 来源于小米官方 **[miot_kit](https://github.com/XiaoMi/xiaomi-miloco)**（`XiaoMi/xiaomi-miloco` 仓库中的 `miot_kit/miot/` 子目录，v0.1.15）。
+
+**Bug fix（[PR #262](https://github.com/XiaoMi/xiaomi-miloco/pull/262)）：**
+
+`client.py:324` — 修复设备从云端移除后 `get_devices_async()` 抛出 `RuntimeError: dictionary changed size during iteration`：
+
+```diff
+- for did in self._device_buffer.keys():
++ for did in list(self._device_buffer.keys()):
+```
+
+该 fix 已向上游提交 PR，合入后将与官方版本完全一致。
 
 ## License
 
