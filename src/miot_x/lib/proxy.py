@@ -167,3 +167,17 @@ class MiotProxy:
 
     async def run_scene(self, scene_info: MIoTManualSceneInfo) -> bool:
         return await self._client.run_manual_scene_async(scene_info=scene_info)
+
+
+# ── 共享单例 ───────────────────────────────────────
+
+_shared_proxy: MiotProxy | None = None
+
+
+async def get_shared_proxy() -> MiotProxy:
+    """获取全局共享的 MiotProxy 实例（懒初始化）。"""
+    global _shared_proxy
+    if _shared_proxy is None:
+        _shared_proxy = MiotProxy()
+        await _shared_proxy.init()
+    return _shared_proxy

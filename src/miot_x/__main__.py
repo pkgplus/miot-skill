@@ -247,6 +247,15 @@ def main():
         asyncio.run(test())
     elif cmd == "homes":
         asyncio.run(select_homes())
+    elif cmd == "serve":
+        import logging
+        import uvicorn
+        from .web import create_app
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+        port = http_port or 8300
+        app = create_app(enable_xiaozhi=enable_xiaozhi)
+        print(f"🚀 miot-x Web 服务启动: http://{http_host}:{port}")
+        uvicorn.run(app, host=http_host, port=port, log_level="info")
     elif cmd in CLI_COMMANDS:
         from .cli import cli_main
         cli_main(positional)
