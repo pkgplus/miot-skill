@@ -13,6 +13,7 @@
     python -m miot_x test      # 测试连接
 """
 import asyncio
+import ipaddress
 import re
 import sys
 
@@ -21,18 +22,105 @@ import qrcode
 from .mcp import server_main
 
 
+async def _start_callback_server():
+    """启动本地 HTTPS 服务捕获 OAuth 回调。返回 (code, server_task) 或 None。"""
+    import ssl
+    import tempfile
+    from aiohttp import web
+
+    code_future = asyncio.get_event_loop().create_future()
+
+    async def handle_callback(request):
+        code = request.query.get("code")
+        if code and not code_future.done():
+            code_future.set_result(code)
+        html = "<html><body><h2>✅ 登录成功！请返回终端继续。</h2></body></html>"
+        return web.Response(text=html, content_type="text/html")
+
+    app = web.Application()
+    app.router.add_get("/", handle_callback)
+
+    # 生成临时自签证书
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    import datetime
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "127.0.0.1")])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
+        .not_valid_after(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1))
+        .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.IPv4Address("127.0.0.1"))]), critical=False)
+        .sign(key, hashes.SHA256())
+    )
+
+    cert_file = tempfile.NamedTemporaryFile(suffix=".pem", delete=False)
+    key_file = tempfile.NamedTemporaryFile(suffix=".pem", delete=False)
+    cert_file.write(cert.public_bytes(serialization.Encoding.PEM))
+    cert_file.close()
+    key_file.write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+    key_file.close()
+
+    ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ssl_ctx.load_cert_chain(cert_file.name, key_file.name)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    try:
+        site = web.TCPSite(runner, "127.0.0.1", 443, ssl_context=ssl_ctx)
+        await site.start()
+    except OSError:
+        await runner.cleanup()
+        return None, None
+
+    return code_future, runner
+
+
 async def login():
-    """OAuth 扫码登录 — 终端显示二维码。"""
+    """OAuth 扫码登录 — 终端显示二维码，自动捕获回调。"""
     from .lib.auth import MIoTAuth
 
     auth = MIoTAuth()
     auth_url, state = await auth.gen_oauth_url()
 
+    # 尝试启动本地回调服务
+    code_future, runner = await _start_callback_server()
+    auto_mode = code_future is not None
+
     qr = qrcode.QRCode()
     qr.add_data(auth_url)
     qr.print_ascii()
 
-    print(f"""
+    if auto_mode:
+        print(f"""
+╔══════════════════════════════════════════════════════════╗
+║               🔐 米家授权登录                            ║
+╚══════════════════════════════════════════════════════════╝
+
+📱 用手机米家 App 扫描上方二维码授权
+
+扫码授权后会自动完成登录，请稍候...
+（如果长时间无响应，也可复制回调 URL 粘贴到这里）
+""")
+        # 同时等待自动回调和手动输入
+        try:
+            code = await asyncio.wait_for(code_future, timeout=120)
+        except asyncio.TimeoutError:
+            print("⏰ 等待超时，请手动粘贴回调 URL:")
+            callback_url = input("📋 回调 URL: ").strip()
+            code_match = re.search(r'[?&]code=([^&]+)', callback_url)
+            code = code_match.group(1) if code_match else None
+        finally:
+            await runner.cleanup()
+    else:
+        print(f"""
 ╔══════════════════════════════════════════════════════════╗
 ║               🔐 米家授权登录                            ║
 ╚══════════════════════════════════════════════════════════╝
@@ -45,20 +133,18 @@ async def login():
 扫码授权后，浏览器会跳转到 127.0.0.1（打不开是正常的），
 把浏览器地址栏的 👉 完整 URL 👈 粘贴到这里:
 """)
+        callback_url = input("📋 回调 URL: ").strip()
+        code_match = re.search(r'[?&]code=([^&]+)', callback_url)
+        code = code_match.group(1) if code_match else None
 
-    callback_url = input("📋 回调 URL: ").strip()
-    code_match = re.search(r'[?&]code=([^&]+)', callback_url)
-    if not code_match:
-        print("❌ URL 中未找到授权码 (code)")
+    if not code:
+        print("❌ 未获取到授权码")
         return
 
-    code = code_match.group(1)
     try:
         oauth_info = await auth.exchange_code(code)
         print(f"""
 ✅ 登录成功!
-   UID: {oauth_info.user_info.uid if oauth_info.user_info else 'N/A'}
-   昵称: {oauth_info.user_info.nickname if oauth_info.user_info else 'N/A'}
    Token 已保存: ~/.miot-x/auth.json
 """)
     except Exception as e:
