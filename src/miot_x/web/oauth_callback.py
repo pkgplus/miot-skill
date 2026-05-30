@@ -17,12 +17,19 @@ _LOGGER = logging.getLogger(__name__)
 
 SUCCESS_HTML = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>登录成功</title></head>
-<body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui;">
-<div style="text-align:center;">
-<h2>✅ 登录成功</h2>
-<p>请返回 miot-x 页面继续操作。</p>
+<body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui;background:#F5F5F5;">
+<div style="text-align:center;background:white;padding:40px;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+<h2 style="margin-bottom:8px;">✅ 登录成功</h2>
+<p style="color:#999;font-size:14px;">窗口将自动关闭，请返回 miot-x</p>
 <script>
-try { window.close(); } catch(e) {}
+// Notify opener window (the :8300 page) that login succeeded
+try {
+    if (window.opener) {
+        window.opener.postMessage({type:'miot-x-login-success'}, '*');
+    }
+} catch(e) {}
+// Auto-close after short delay
+setTimeout(function(){ try { window.close(); } catch(e) {} }, 1500);
 </script>
 </div>
 </body></html>"""

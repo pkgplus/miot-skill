@@ -30,6 +30,15 @@ function app() {
                 const { siid, piid, value } = e.detail;
                 this.setPropValue(siid, piid, value);
             });
+            // Listen for OAuth callback success from :443 window
+            window.addEventListener('message', async (e) => {
+                if (e.data && e.data.type === 'miot-x-login-success') {
+                    if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+                    this.loginLoading = false;
+                    await this.checkAuth();
+                    if (this.loggedIn) { await this.loadData(); this.startAutoRefresh(); }
+                }
+            });
         },
 
         startAutoRefresh() {
