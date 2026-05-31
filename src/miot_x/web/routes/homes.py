@@ -19,10 +19,11 @@ async def list_homes(request: Request):
     proxy, err = await _get_proxy_or_error()
     if err:
         return err
-    homes = await proxy.get_homes()
+    # 获取全部家庭（不按 selected 过滤），让用户能看到并修改选择
+    all_homes = await proxy._client.get_homes_async()
     selected = get_selected_home_ids()
     result = []
-    for home in homes.values():
+    for home in all_homes.values():
         room_count = len(home.room_list) if home.room_list else 0
         result.append({
             "home_id": home.home_id,
