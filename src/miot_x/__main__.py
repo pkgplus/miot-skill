@@ -17,8 +17,6 @@ import ipaddress
 import re
 import sys
 
-import qrcode
-
 from .mcp import server_main
 
 
@@ -84,71 +82,69 @@ async def _start_callback_server():
 
 
 async def login():
-    """OAuth 扫码登录 — 终端显示二维码，自动捕获回调。"""
+    """小米账号 OAuth 登录。"""
     from .lib.auth import MIoTAuth
 
     auth = MIoTAuth()
     auth_url, state = await auth.gen_oauth_url()
 
-    # 尝试启动本地回调服务
+    # 尝试启动本地 :443 回调服务
     code_future, runner = await _start_callback_server()
     auto_mode = code_future is not None
 
-    qr = qrcode.QRCode()
-    qr.add_data(auth_url)
-    qr.print_ascii()
+    print("""
+╔══════════════════════════════════════════════════════════╗
+║              🔐 小米账号登录                              ║
+╚══════════════════════════════════════════════════════════╝
+""")
 
     if auto_mode:
-        print(f"""
-╔══════════════════════════════════════════════════════════╗
-║               🔐 米家授权登录                            ║
-╚══════════════════════════════════════════════════════════╝
+        print(f"""  请在浏览器中打开以下链接，完成小米账号登录：
 
-📱 用手机米家 App 扫描上方二维码授权
+  {auth_url}
 
-扫码授权后会自动完成登录，请稍候...
-（如果长时间无响应，也可复制回调 URL 粘贴到这里）
+  ⏳ 等待登录完成...（登录后会自动捕获回调）
+  💡 如果超时，请将浏览器地址栏的完整 URL 粘贴到这里。
 """)
-        # 同时等待自动回调和手动输入
         try:
             code = await asyncio.wait_for(code_future, timeout=120)
         except asyncio.TimeoutError:
-            print("⏰ 等待超时，请手动粘贴回调 URL:")
-            callback_url = input("📋 回调 URL: ").strip()
+            print("  ⏰ 等待超时，请手动粘贴：")
+            callback_url = input("\n  📋 回调 URL: ").strip()
             code_match = re.search(r'[?&]code=([^&]+)', callback_url)
             code = code_match.group(1) if code_match else None
         finally:
             await runner.cleanup()
     else:
-        print(f"""
-╔══════════════════════════════════════════════════════════╗
-║               🔐 米家授权登录                            ║
-╚══════════════════════════════════════════════════════════╝
+        print(f"""  步骤 1: 在浏览器中打开以下链接
+  ─────────────────────────────────
+  {auth_url}
 
-📱 用手机米家 App 扫描上方二维码授权
+  步骤 2: 完成小米账号登录
+  ─────────────────────────────────
+  登录后浏览器会跳转到 https://127.0.0.1/...
+  页面会显示"无法连接"——这是正常的。
 
-如果扫码失败，也可复制以下链接在浏览器中打开:
-{auth_url}
-
-扫码授权后，浏览器会跳转到 127.0.0.1（打不开是正常的），
-把浏览器地址栏的 👉 完整 URL 👈 粘贴到这里:
+  步骤 3: 复制浏览器地址栏的完整 URL
+  ─────────────────────────────────
+  地址类似: https://127.0.0.1/?code=abc123&state=xyz
+  请粘贴到下方：
 """)
-        callback_url = input("📋 回调 URL: ").strip()
+        callback_url = input("  📋 回调 URL: ").strip()
         code_match = re.search(r'[?&]code=([^&]+)', callback_url)
         code = code_match.group(1) if code_match else None
 
     if not code:
-        print("❌ 未获取到授权码")
+        print("\n  ❌ 未获取到授权码，请重试")
         return
 
     try:
-        oauth_info = await auth.exchange_code(code)
-        print(f"""
-✅ 登录成功!
-   Token 已保存: ~/.miot-x/auth.json
+        await auth.exchange_code(code)
+        print("""
+  ✅ 登录成功！Token 已保存至 ~/.miot-x/auth.json
 """)
     except Exception as e:
-        print(f"❌ 登录失败: {e}")
+        print(f"\n  ❌ 登录失败: {e}")
         return
 
     await select_homes()
