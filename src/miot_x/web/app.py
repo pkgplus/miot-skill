@@ -65,6 +65,10 @@ def create_app(enable_xiaozhi: bool = False, enable_mcp: bool = True):
     async def lifespan(app):
         _LOGGER.info("miot-x Web 服务启动中...")
 
+        # 启动 OAuth :443 常驻回调服务
+        from .oauth_callback import start_persistent_callback_server, stop_persistent_callback_server
+        await start_persistent_callback_server()
+
         # 尝试预连接 MIoT
         try:
             from ..lib.proxy import get_shared_proxy
@@ -76,7 +80,6 @@ def create_app(enable_xiaozhi: bool = False, enable_mcp: bool = True):
         # 启动小智桥接
         xiaozhi_task = None
         if enable_xiaozhi:
-            from ..mcp.xiaozhi import xiaozhi_bridge
             from ..mcp.server import mcp as mcp_instance
             xiaozhi_task = asyncio.create_task(_xiaozhi_with_status(mcp_instance))
             _LOGGER.info("小智桥接已启动")
@@ -85,6 +88,7 @@ def create_app(enable_xiaozhi: bool = False, enable_mcp: bool = True):
 
         if xiaozhi_task:
             xiaozhi_task.cancel()
+        await stop_persistent_callback_server()
 
     # API routes
     api_routes = [
