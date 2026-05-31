@@ -193,9 +193,18 @@ async def get_shared_proxy() -> MiotProxy:
 
 
 async def reset_shared_proxy():
-    """重置共享 proxy（登录后需要重新连接）。"""
+    """登录后刷新 proxy 的 token（不销毁重建，避免 camera dylib segfault）。"""
     global _shared_proxy
     async with _get_lock():
-        if _shared_proxy:
-            await _shared_proxy.deinit()
-        _shared_proxy = None
+        if _shared_proxy and _shared_proxy._client:
+            # 重新加载 token 并刷新 http client header
+            oauth_info = MIoTAuth.load()
+            if oauth_info and oauth_info.access_token:
+                _shared_proxy._oauth_info = oauth_info
+                _shared_proxy._client._oauth_info = oauth_info
+                _shared_proxy._client._http_client.update_http_header(
+                    access_token=oauth_info.access_token)
+                _LOGGER.info("proxy token 已刷新（无需重建连接）")
+        else:
+            # proxy 尚未初始化，标记为 None 让下次请求重建
+            _shared_proxy = None
